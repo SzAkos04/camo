@@ -12,24 +12,49 @@
 
 #define CTRL(ch) (ch & 0x1F)
 
+void help(void);
+
 int main(int argc, char **argv) {
-    if (argc != 2) {
+    if (argc < 2) {
         error("incorrect usage, for help run `camo --help`");
         return EXIT_FAILURE;
     }
 
-    if (strcmp(argv[1], "--help") == 0) {
-        printf("Usage: camo [file]\n");
-        printf("\n");
-        printf("Arguments:\n");
-        printf("  file    The path of the file intended to work on\n");
-        printf("\n");
-        printf("For more information, visit: \n");
-        printf("  https://github.com/SzAkos04/camo\n");
-        return EXIT_SUCCESS;
-    }
+    char *path;
 
-    char *path = argv[1];
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '-') {
+            switch (argv[i][1]) {
+            case 'h':
+                help();
+                return EXIT_SUCCESS;
+            case '-':
+                if (strcmp(argv[i], "--help") == 0) {
+                    help();
+                    return EXIT_SUCCESS;
+                } else {
+                    char msg[128];
+                    snprintf(msg, sizeof(msg),
+                             "unknown argument `%s`\n"
+                             "for more info, run `camo --help`",
+                             argv[i]);
+                    error(msg);
+                    return EXIT_FAILURE;
+                }
+            default: {
+                char msg[128];
+                snprintf(msg, sizeof(msg),
+                         "unknown argument `%s`\n"
+                         "for more info, run `camo --help`",
+                         argv[i]);
+                error(msg);
+                return EXIT_FAILURE;
+            }
+            }
+        } else {
+            path = argv[i];
+        }
+    }
 
     long file_size = 0;
     char *buf;
@@ -112,31 +137,19 @@ int main(int argc, char **argv) {
             break;
         }
         case KEY_BACKSPACE:
-            // move the cursor back and delete the character
-            if (curx > 0) {
-                mvdelch(cury, curx - 1);
-            } else {
-                move(cury - 1, maxx - 1);
-                addch(' '); // overwrite the character with a space
-                move(cury - 1, maxx - 1);
+            if (file_size > 0) {
+                // move the cursor back and delete the character
+                if (curx > 0) {
+                    mvdelch(cury, curx - 1);
+                } else {
+                    move(cury - 1, maxx - 1);
+                    addch(' '); // overwrite the character with a space
+                    move(cury - 1, maxx - 1);
+                }
+                // remove the last character from the buffer
+                buf[file_size - 1] = '\0';
+                file_size--;
             }
-            // remove the last character from the buffer
-            buf[file_size - 1] = '\0';
-            file_size--;
-            break;
-            // TODO: Make it so it doesn't override the existing text, and it
-            // doesn't append into to the buffer, but rather insert it
-        case KEY_LEFT:
-            move(cury, curx - 1);
-            break;
-        case KEY_RIGHT:
-            move(cury, curx + 1);
-            break;
-        case KEY_UP:
-            move(cury - 1, curx);
-            break;
-        case KEY_DOWN:
-            move(cury + 1, curx);
             break;
         default: {
             if (isprint(ch) || isspace(ch)) {
@@ -163,10 +176,19 @@ int main(int argc, char **argv) {
         }
         refresh();
     }
-
     endwin();
 
     free(buf);
 
     return EXIT_SUCCESS;
+}
+
+void help(void) {
+    printf("Usage: camo [file]\n");
+    printf("\n");
+    printf("Arguments:\n");
+    printf("  file    The path of the file intended to work on\n");
+    printf("\n");
+    printf("For more information, visit: \n");
+    printf("  https://github.com/SzAkos04/camo\n");
 }
