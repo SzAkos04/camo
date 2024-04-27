@@ -9,3 +9,9 @@
         fprintf(stderr, "%scamo: %serror%s: %s\n", BOLD, BOLD_RED, RESET,      \
                 msg);                                                          \
     } while (0)
+
+#define perr(msg)                                                              \
+    do {                                                                       \
+        fprintf(stderr, "%scamo: %serror%s: ", BOLD, BOLD_RED, RESET);         \
+        perror(msg);                                                           \
+    } while (0)

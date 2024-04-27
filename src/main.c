@@ -8,6 +8,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define MAYBE_UNUSED __attribute__((unused))
+
 #define CTRL(ch) (ch & 0x1F)
 
 int main(int argc, char **argv) {
@@ -30,13 +32,13 @@ int main(int argc, char **argv) {
     char *path = argv[1];
 
     if (access(path, F_OK | R_OK) != 0) {
-        error("file does not exist");
+        perr("file does not exist");
         return EXIT_FAILURE;
     }
 
     FILE *infile = fopen(path, "r");
     if (!infile) {
-        error("failed to open file");
+        perr("failed to open file");
         return EXIT_FAILURE;
     }
 
@@ -47,14 +49,14 @@ int main(int argc, char **argv) {
 
     char *buf = (char *)malloc(sizeof(char) * (file_size + 1));
     if (!buf) {
-        error("failed to allocate memory");
+        perr("failed to allocate memory");
         fclose(infile);
         return EXIT_FAILURE;
     }
 
     size_t files_read = fread(buf, sizeof(char), file_size, infile);
     if (files_read != (size_t)file_size) {
-        error("failed to read file");
+        perr("failed to read file");
         fclose(infile);
         free(buf);
         return EXIT_FAILURE;
@@ -74,18 +76,19 @@ int main(int argc, char **argv) {
     refresh();
 
     while (running) {
+        int cury = getcury(stdscr);
+        int curx = getcurx(stdscr);
+        int maxy MAYBE_UNUSED = getmaxy(stdscr);
+        int maxx = getmaxx(stdscr);
         int ch = getch();
         switch (ch) {
         case CTRL('c'):
             running = false;
             break;
         case CTRL('s'): {
-            // if the file is closed without saving, the whole contents is
-            // deleted
             FILE *outfile = fopen(path, "w");
-            /* freopen(path, "w", outfile); */
             if (!outfile) {
-                error("failed to open file");
+                perr("failed to open file");
                 return EXIT_FAILURE;
             }
             fprintf(outfile, "%s", buf);
@@ -95,24 +98,37 @@ int main(int argc, char **argv) {
         case KEY_BACKSPACE:
             if (file_size > 0) {
                 // move the cursor back and delete the character
-                if (getcurx(stdscr) > 0) {
-                    mvdelch(getcury(stdscr), getcurx(stdscr) - 1);
+                if (curx > 0) {
+                    mvdelch(cury, curx - 1);
                 } else {
-                    move(getcury(stdscr) - 1, getmaxx(stdscr) - 1);
+                    move(cury - 1, maxx - 1);
                     addch(' '); // overwrite the character with a space
-                    move(getcury(stdscr), getmaxx(stdscr) - 1);
+                    move(cury - 1, maxx - 1);
                 }
                 // remove the last character from the buffer
                 buf[file_size - 1] = '\0';
                 file_size--;
             }
             break;
+            // TODO: Make it so it doesn't override the existing text
+        case KEY_LEFT:
+            move(cury, curx - 1);
+            break;
+        case KEY_RIGHT:
+            move(cury, curx + 1);
+            break;
+        case KEY_UP:
+            move(cury - 1, curx);
+            break;
+        case KEY_DOWN:
+            move(cury + 1, curx);
+            break;
         default: {
             if (isprint(ch) || isspace(ch)) {
                 char *tmp = (char *)malloc(file_size + 1);
                 if (!tmp) {
                     free(buf);
-                    error("failed to allocate memory");
+                    perr("failed to allocate memory");
                     return EXIT_FAILURE;
                 }
                 strcpy(tmp, buf);
@@ -120,7 +136,7 @@ int main(int argc, char **argv) {
                 buf = (char *)realloc(buf, file_size + 1);
                 if (!buf) {
                     free(buf);
-                    error("failed to allocate memory");
+                    perr("failed to allocate memory");
                     return EXIT_FAILURE;
                 }
                 sprintf(buf, "%s%c", tmp, ch);
