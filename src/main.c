@@ -31,39 +31,54 @@ int main(int argc, char **argv) {
 
     char *path = argv[1];
 
-    if (access(path, F_OK | R_OK) != 0) {
-        perr("file does not exist");
-        return EXIT_FAILURE;
-    }
+    long file_size = 0;
+    char *buf;
 
-    FILE *infile = fopen(path, "r");
-    if (!infile) {
-        perr("failed to open file");
-        return EXIT_FAILURE;
-    }
+    if (access(path, F_OK | R_OK) == 0) {
+        FILE *infile = fopen(path, "r");
+        if (!infile) {
+            perr("failed to open file");
+            return EXIT_FAILURE;
+        }
 
-    // get the size of the file
-    fseek(infile, 0, SEEK_END);
-    long file_size = ftell(infile);
-    fseek(infile, 0, SEEK_SET);
+        // get the size of the file
+        fseek(infile, 0, SEEK_END);
+        file_size = ftell(infile);
+        fseek(infile, 0, SEEK_SET);
 
-    char *buf = (char *)malloc(sizeof(char) * (file_size + 1));
-    if (!buf) {
-        perr("failed to allocate memory");
+        // +1 for the null terminator
+        buf = (char *)malloc(sizeof(char) * (file_size + 1));
+        if (!buf) {
+            perr("failed to allocate memory");
+            fclose(infile);
+            return EXIT_FAILURE;
+        }
+
+        size_t files_read = fread(buf, sizeof(char), file_size, infile);
+        if (files_read != (size_t)file_size) {
+            perr("failed to read file");
+            fclose(infile);
+            free(buf);
+            return EXIT_FAILURE;
+        }
+        buf[file_size] = '\0';
+
         fclose(infile);
-        return EXIT_FAILURE;
+    } else {
+        // create file
+        FILE *outfile = fopen(path, "w");
+        if (!outfile) {
+            perr("failed to open file");
+            return EXIT_FAILURE;
+        }
+        fclose(outfile);
+        // initialize buffer
+        buf = (char *)malloc(sizeof(char));
+        if (!buf) {
+            perr("failed to allocate memory");
+            return EXIT_FAILURE;
+        }
     }
-
-    size_t files_read = fread(buf, sizeof(char), file_size, infile);
-    if (files_read != (size_t)file_size) {
-        perr("failed to read file");
-        fclose(infile);
-        free(buf);
-        return EXIT_FAILURE;
-    }
-    buf[file_size] = '\0';
-
-    fclose(infile);
 
     bool running = true;
     initscr();
@@ -80,6 +95,7 @@ int main(int argc, char **argv) {
         int curx = getcurx(stdscr);
         int maxy MAYBE_UNUSED = getmaxy(stdscr);
         int maxx = getmaxx(stdscr);
+
         int ch = getch();
         switch (ch) {
         case CTRL('c'):
@@ -96,21 +112,20 @@ int main(int argc, char **argv) {
             break;
         }
         case KEY_BACKSPACE:
-            if (file_size > 0) {
-                // move the cursor back and delete the character
-                if (curx > 0) {
-                    mvdelch(cury, curx - 1);
-                } else {
-                    move(cury - 1, maxx - 1);
-                    addch(' '); // overwrite the character with a space
-                    move(cury - 1, maxx - 1);
-                }
-                // remove the last character from the buffer
-                buf[file_size - 1] = '\0';
-                file_size--;
+            // move the cursor back and delete the character
+            if (curx > 0) {
+                mvdelch(cury, curx - 1);
+            } else {
+                move(cury - 1, maxx - 1);
+                addch(' '); // overwrite the character with a space
+                move(cury - 1, maxx - 1);
             }
+            // remove the last character from the buffer
+            buf[file_size - 1] = '\0';
+            file_size--;
             break;
-            // TODO: Make it so it doesn't override the existing text
+            // TODO: Make it so it doesn't override the existing text, and it
+            // doesn't append into to the buffer, but rather insert it
         case KEY_LEFT:
             move(cury, curx - 1);
             break;
